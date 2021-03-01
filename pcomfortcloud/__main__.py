@@ -13,6 +13,11 @@ def print_result(obj, indent = 0):
             print_result(value, indent + 4)
         elif isinstance(value, Enum):
             print(" "*indent + "{0: <{width}}: {1}".format(key, value.name, width=25-indent))
+        elif isinstance(value, list):
+            print(" "*indent + "{0: <{width}}:".format(key, width=25-indent))
+            for elt in value:
+                print_result(elt, indent + 4)
+                print("")
         else:
             print(" "*indent + "{0: <{width}}: {1}".format(key, value, width=25-indent))
 
@@ -123,6 +128,15 @@ def main():
             pcomfortcloud.constants.EcoMode.Powerful.name],
         help='Eco mode')
 
+    set_parser.add_argument(
+        '-n', '--nanoe',
+        choices=[
+            pcomfortcloud.constants.NanoeMode.On.name,
+            pcomfortcloud.constants.NanoeMode.Off.name,
+            pcomfortcloud.constants.NanoeMode.ModeG.name,
+            pcomfortcloud.constants.NanoeMode.All.name],
+        help='Nanoe mode')
+
     # set_parser.add_argument(
     #     '--airswingauto',
     #     choices=[
@@ -162,6 +176,25 @@ def main():
         dest='device',
         type=int,
         help='Device number 1-x')
+
+    history_parser = commandparser.add_parser(
+        'history',
+        help="Dump history of a device")
+
+    history_parser.add_argument(
+        dest='device',
+        type=int,
+        help='Device number 1-x')
+
+    history_parser.add_argument(
+        dest='mode',
+        type=str,
+        help='mode (Day, Week, Month, Year)')
+
+    history_parser.add_argument(
+        dest='date',
+        type=str,
+        help='date of day like 20190807')
 
     args = parser.parse_args()
 
@@ -210,6 +243,9 @@ def main():
             if args.eco is not None:
                 kwargs['eco'] = pcomfortcloud.constants.EcoMode[args.eco]
 
+            if args.nanoe is not None:
+                kwargs['nanoe'] = pcomfortcloud.constants.NanoeMode[args.nanoe]
+
             if args.airSwingHorizontal is not None:
                 kwargs['airSwingHorizontal'] = pcomfortcloud.constants.AirSwingLR[args.airSwingHorizontal]
 
@@ -225,6 +261,14 @@ def main():
             device = session.get_devices()[int(args.device) - 1]
 
             print_result(session.dump(device['id']))
+
+        if args.command == 'history':
+            if int(args.device) <= 0 or int(args.device) > len(session.get_devices()):
+                raise Exception("device not found, acceptable device id is from {} to {}".format(1, len(session.get_devices())))
+
+            device = session.get_devices()[int(args.device) - 1]
+
+            print_result(session.history(device['id'], args.mode, args.date))
 
     except pcomfortcloud.ResponseError as ex:
         print(ex.text)

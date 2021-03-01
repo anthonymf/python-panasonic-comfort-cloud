@@ -21,11 +21,11 @@ class AirSwingUD(Enum):
 
 class AirSwingLR(Enum):
     Auto = -1
-    Left = 0
-    LeftMid = 4
+    Left = 1
+    LeftMid = 5
     Mid = 2
-    RightMid = 3
-    Right = 1
+    RightMid = 4
+    Right = 0
 
 class EcoMode(Enum):
     Auto = 0
@@ -45,3 +45,16 @@ class FanSpeed(Enum):
     Mid = 3
     HighMid = 4
     High = 5
+
+class dataMode(Enum):
+    Day = 0
+    Week = 1
+    Month = 2
+    Year = 4
+
+class NanoeMode(Enum):
+    Unavailable = 0
+    Off = 1
+    On = 2
+    ModeG = 3
+    All = 4

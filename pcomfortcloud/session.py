@@ -40,7 +40,7 @@ class ResponseError(Error):
                 status_code,
                 text))
         self.status_code = status_code
-        self.text = json.loads(text)
+        self.text = text
 
 
 class Session(object):
@@ -60,11 +60,14 @@ class Session(object):
         self._groups = None
         self._devices = None
         self._deviceIndexer = {}
-        self._verifySsl = verifySsl
         self._raw = raw
 
         if verifySsl == False:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            self._verifySsl = verifySsl
+        else:
+            self._verifySsl = os.path.join(os.path.dirname(__file__),
+                    "certificatechain.pem")
 
     def __enter__(self):
         self.login()
@@ -105,8 +108,9 @@ class Session(object):
     def _headers(self):
         return {
             "X-APP-TYPE": "1",
-            "X-APP-VERSION": "2.0.0",
+            "X-APP-VERSION": "1.10.0",
             "X-User-Authorization": self._vid,
+            "User-Agent": "Python-Panasonic-Comfort-Cloud",
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
@@ -171,7 +175,12 @@ class Session(object):
             self._devices = []
 
             for group in self._groups['groupList']:
-                for device in group['deviceIdList']:
+                if 'deviceList' in group:
+                    list = group.get('deviceList', [])
+                else:
+                    list = group.get('deviceIdList', [])
+
+                for device in list:
                     if device:
                         id = None
                         if 'deviceHashGuid' in device:
@@ -206,6 +215,49 @@ class Session(object):
 
             _validate_response(response)
             return json.loads(response.text)
+
+        return None
+
+    def history(self, id, mode, date, tz="+01:00"):
+        deviceGuid = self._deviceIndexer.get(id)
+
+        if(deviceGuid):
+            response = None
+
+            try:
+                dataMode = constants.dataMode[mode].value
+            except KeyError:
+                raise Exception("Wrong mode parameter")
+
+            payload = {
+                "deviceGuid": deviceGuid,
+                "dataMode": dataMode,
+                "date": date,
+                "osTimezone": tz
+            }
+
+            try:
+                response = requests.post(urls.history(), json=payload, headers=self._headers(), verify=self._verifySsl)
+
+                if 2 != response.status_code // 100:
+                    raise ResponseError(response.status_code, response.text)
+
+            except requests.exceptions.RequestException as ex:
+                raise RequestError(ex)
+
+            _validate_response(response)
+
+            if(self._raw is True):
+                print("--- history()")
+                print("--- raw beginning ---")
+                print(response.text)
+                print("--- raw ending    ---")
+
+            _json = json.loads(response.text)
+            return {
+                'id': id,
+                'parameters': self._read_parameters(_json)
+            }
 
         return None
 
@@ -275,6 +327,9 @@ class Session(object):
                 
                 if key == 'eco' and isinstance(value, constants.EcoMode):
                     parameters['ecoMode'] = value.value
+
+                if key == 'nanoe' and isinstance(value, constants.NanoeMode) and value != constants.NanoeMode.Unavailable:
+                    parameters['nanoe'] = value.value
 
 
         # routine to set the auto mode of fan (either horizontal, vertical, both or disabled)
@@ -352,17 +407,21 @@ class Session(object):
     def _read_parameters(self, parameters = {}):
         value = {}
 
-        if 'insideTemperature' in parameters:
-            value['temperatureInside'] = parameters['insideTemperature']
-
-        if 'outTemperature' in parameters:
-            value['temperatureOutside'] = parameters['outTemperature']
+        _convert = {
+                'insideTemperature': 'temperatureInside',
+                'outTemperature': 'temperatureOutside',
+                'temperatureSet': 'temperature',
+                'currencyUnit': 'currencyUnit',
+                'energyConsumption': 'energyConsumption',
+                'estimatedCost': 'estimatedCost',
+                'historyDataList': 'historyDataList',
+            }
+        for key in _convert:
+            if key in parameters:
+                value[_convert[key]] = parameters[key]
 
         if 'operate' in parameters:
             value['power'] = constants.Power(parameters['operate'])
-
-        if 'temperatureSet' in parameters:
-            value['temperature'] = parameters['temperatureSet']
 
         if 'operationMode' in parameters:
             value['mode'] = constants.OperationMode(parameters['operationMode'])
@@ -378,6 +437,9 @@ class Session(object):
 
         if 'ecoMode' in parameters:
             value['eco'] = constants.EcoMode(parameters['ecoMode'])
+
+        if 'nanoe' in parameters:
+            value['nanoe'] = constants.NanoeMode(parameters['nanoe'])
 
         if 'fanAutoMode' in parameters:
             if parameters['fanAutoMode'] == constants.AirSwingAutoMode.Both.value:

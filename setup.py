@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='pcomfortcloud',
-    version='0.0.13',
+    version='0.0.20',
     description='Read and change status of Panasonic Comfort Cloud devices',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -23,7 +23,8 @@ setup(
     keywords='home automation panasonic climate',
     install_requires=['requests>=2.20.0'],
     packages=['pcomfortcloud'],
-    zip_safe=True,
+    package_data={'': ['certificatechain.pem']},
+    zip_safe=False,
     entry_points={
         'console_scripts': [
             'pcomfortcloud=pcomfortcloud.__main__:main',
